@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Космический Угадай Число</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #000;
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .star {
+            position: absolute;
+            background-color: white;
+            border-radius: 50%;
+            z-index: 1;
+        }
+        
+        #game-screen {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        
+        .title {
+            font-size: 50px;
+            font-weight: bold;
+            margin-bottom: 30px;
+        }
+        
+        .gold {
+            color: #FFD700;
+        }
+        
+        .blue {
+            color: #0064FF;
+        }
+        
+        .red {
+            color: #FF6464;
+        }
+        
+        .green {
+            color: #64FF64;
+        }
+        
+        .instructions {
+            font-size: 24px;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+        
+        .button {
+            padding: 15px 30px;
+            font-size: 20px;
+            font-weight: bold;
+            background-color: #0064FF;
+            color: white;
+            border: 2px solid white;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 10px;
+        }
+        
+        .button:hover {
+            background-color: #8A2BE2;
+            transform: scale(1.05);
+        }
+        
+        .difficulty-button {
+            width: 200px;
+        }
+        
+        .hint-button {
+            background-color: #8A2BE2;
+            font-size: 16px;
+            padding: 10px 20px;
+            margin-top: 20px;
+        }
+        
+        .input-container {
+            display: flex;
+            align-items: center;
+            margin: 20px 0;
+        }
+        
+        #number-input {
+            width: 200px;
+            height: 40px;
+            font-size: 20px;
+            text-align: center;
+            border: 2px solid white;
+            border-radius: 5px;
+            background-color: transparent;
+            color: white;
+            margin-right: 20px;
+        }
+        
+        .attempts {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 20px;
+        }
+        
+        .difficulty {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 20px;
+            color: #FFD700;
+        }
+        
+        .message {
+            font-size: 24px;
+            margin: 20px 0;
+            min-height: 80px;
+        }
+        
+        .hint {
+            position: absolute;
+            bottom: 60px;
+            color: #C8C8C8;
+            font-size: 18px;
+        }
+        
+        .win-effect {
+            position: absolute;
+            background-color: #FFD700;
+            border-radius: 50%;
+            z-index: 3;
+        }
+        
+        .hint-container {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #8A2BE2;
+            border-radius: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            max-width: 80%;
+            animation: fadeIn 0.5s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .hint-title {
+            color: #8A2BE2;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .hint-text {
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="stars"></div>
+        <div id="game-screen">
+            <!-- Контент будет динамически меняться JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        // Игровые переменные
+        let secretNumber;
+        let attempts = 0;
+        let maxAttempts;
+        let gameState = "start"; // start, difficulty, playing, win, lose
+        let difficulty = "medium"; // easy, medium, hard
+        let hintsUsed = 0;
+        let hintAvailable = false;
+        let currentHint = null;
+        
+        // Настройки сложности
+        const difficultySettings = {
+            easy: {
+                range: [1, 50],
+                attempts: 8,
+                hints: 3
+            },
+            medium: {
+                range: [1, 100],
+                attempts: 10,
+                hints: 2
+            },
+            hard: {
+                range: [1, 200],
+                attempts: 12,
+                hints: 1
+            }
+        };
+        
+        // DOM элементы
+        const gameContainer = document.getElementById('game-container');
+        const gameScreen = document.getElementById('game-screen');
+        const starsContainer = document.getElementById('stars');
+        
+        // Создаем звезды для фона
+        function createStars() {
+            for (let i = 0; i < 100; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                
+                const size = Math.random() * 3 + 1;
+                star.style.width = `${size}px`;
+                star.style.height = `${size}px`;
+                
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.top = `${Math.random() * 100}%`;
+                
+                starsContainer.appendChild(star);
+            }
+        }
+        
+        // Анимация звезд
+        function animateStars() {
+            const stars = document.querySelectorAll('.star');
+            stars.forEach(star => {
+                let top = parseFloat(star.style.top);
+                top += 0.1;
+                if (top > 100) {
+                    top = 0;
+                    star.style.left = `${Math.random() * 100}%`;
+                }
+                star.style.top = `${top}%`;
+            });
+            
+            requestAnimationFrame(animateStars);
+        }
+        
+        // Начало новой игры
+        function startNewGame() {
+            const settings = difficultySettings[difficulty];
+            secretNumber = Math.floor(Math.random() * (settings.range[1] - settings.range[0] + 1)) + settings.range[0];
+            maxAttempts = settings.attempts;
+            attempts = 0;
+            hintsUsed = 0;
+            hintAvailable = false;
+            currentHint = null;
+            gameState = "playing";
+            renderGameScreen();
+        }
+        
+        // Проверка числа
+        function checkGuess() {
+            const input = document.getElementById('number-input');
+            const message = document.querySelector('.message');
+            
+            if (!input.value) {
+                message.textContent = "Пожалуйста, введите число!";
+                message.className = "message red";
+                return;
+            }
+            
+            const guess = parseInt(input.value);
+            const settings = difficultySettings[difficulty];
+            
+            if (isNaN(guess) || guess < settings.range[0] || guess > settings.range[1]) {
+                message.textContent = `Число должно быть от ${settings.range[0]} до ${settings.range[1]}!`;
+                message.className = "message red";
+                return;
+            }
+            
+            attempts++;
+            
+            if (guess === secretNumber) {
+                message.innerHTML = `Поздравляем! Вы угадали число ${secretNumber}<br>за ${attempts} попыток!`;
+                message.className = "message gold";
+                gameState = "win";
+                createWinEffect();
+            } else if (guess < secretNumber) {
+                message.textContent = "Загаданное число больше!";
+                message.className = "message";
+            } else {
+                message.textContent = "Загаданное число меньше!";
+                message.className = "message";
+            }
+            
+            // Проверяем, можно ли использовать подсказку
+            const hintsLeft = difficultySettings[difficulty].hints - hintsUsed;
+            if (hintsLeft > 0 && attempts >= Math.floor(maxAttempts / 2)) {
+                hintAvailable = true;
+            } else {
+                hintAvailable = false;
+            }
+            
+            if (attempts >= maxAttempts && gameState !== "win") {
+                message.innerHTML = `Игра окончена!<br>Число было ${secretNumber}.`;
+                message.className = "message red";
+                gameState = "lose";
+            }
+            
+            input.value = "";
+            renderGameScreen();
+        }
+        
+        // Получение подсказки
+        function getHint() {
+            if (!hintAvailable || hintsUsed >= difficultySettings[difficulty].hints) return;
+            
+            hintsUsed++;
+            hintAvailable = false;
+            
+            // Удаляем предыдущую подсказку, если есть
+            const oldHint = document.querySelector('.hint-container');
+            if (oldHint) oldHint.remove();
+            
+            // Создаем контейнер для подсказки
+            const hintContainer = document.createElement('div');
+            hintContainer.className = 'hint-container';
+            
+            const hintTitle = document.createElement('div');
+            hintTitle.className = 'hint-title';
+            hintTitle.textContent = `Подсказка ${hintsUsed}/${difficultySettings[difficulty].hints}`;
+            hintContainer.appendChild(hintTitle);
+            
+            // Разные типы подсказок
+            const hintTypes = [
+                () => {
+                    const parity = secretNumber % 2 === 0 ? "чётное" : "нечётное";
+                    return `Число ${parity}`;
+                },
+                () => {
+                    const sum = String(secretNumber).split('').reduce((a, b) => parseInt(a) + parseInt(b), 0);
+                    return `Сумма цифр: ${sum}`;
+                },
+                () => {
+                    const lastDigit = secretNumber % 10;
+                    return `Последняя цифра: ${lastDigit}`;
+                },
+                () => {
+                    const range = difficultySettings[difficulty].range;
+                    const quarter = Math.floor((secretNumber - range[0]) / ((range[1] - range[0]) / 4));
+                    return `Число в ${["первой", "второй", "третьей", "четвёртой"][quarter]} четверти диапазона`;
+                },
+                () => {
+                    const divisors = [];
+                    for (let i = 2; i < secretNumber; i++) {
+                        if (secretNumber % i === 0) divisors.push(i);
+                    }
+                    if (divisors.length === 0) return "Число простое (делится только на 1 и само себя)";
+                    return `Число делится на: ${divisors.slice(0, 3).join(', ')}${divisors.length > 3 ? '...' : ''}`;
+                }
+            ];
+            
+            // Выбираем случайную подсказку
+            const randomHintType = Math.floor(Math.random() * hintTypes.length);
+            currentHint = hintTypes[randomHintType]();
+            
+            const hintText = document.createElement('div');
+            hintText.className = 'hint-text';
+            hintText.textContent = currentHint;
+            hintContainer.appendChild(hintText);
+            
+            gameScreen.appendChild(hintContainer);
+            renderGameScreen();
+        }
+        
+        // Эффект победы
+        function createWinEffect() {
+            for (let i = 0; i < 20; i++) {
+                setTimeout(() => {
+                    const effect = document.createElement('div');
+                    effect.className = 'win-effect';
+                    
+                    const size = Math.random() * 5 + 2;
+                    effect.style.width = `${size}px`;
+                    effect.style.height = `${size}px`;
+                    
+                    effect.style.left = `${Math.random() * 100}%`;
+                    effect.style.top = `${Math.random() * 50}%`;
+                    
+                    gameContainer.appendChild(effect);
+                    
+                    setTimeout(() => {
+                        effect.remove();
+                    }, 2000);
+                }, i * 100);
+            }
+        }
+        
+        // Отрисовка экрана игры
+        function renderGameScreen() {
+            gameScreen.innerHTML = '';
+            
+            if (gameState === "start") {
+                // Экран начала игры
+                const title = document.createElement('h1');
+                title.className = 'title gold';
+                title.textContent = 'Космический Угадай Число';
+                gameScreen.appendChild(title);
+                
+                const instructions = document.createElement('div');
+                instructions.className = 'instructions';
+                instructions.innerHTML = `
+                    Добро пожаловать в космическое приключение!<br>
+                    Выберите уровень сложности и попробуйте угадать<br>
+                    число, которое загадал компьютер.
+                `;
+                gameScreen.appendChild(instructions);
+                
+                const startButton = document.createElement('button');
+                startButton.className = 'button';
+                startButton.textContent = 'Начать игру';
+                startButton.addEventListener('click', () => {
+                    gameState = "difficulty";
+                    renderGameScreen();
+                });
+                gameScreen.appendChild(startButton);
+                
+            } else if (gameState === "difficulty") {
+                // Выбор сложности
+                const title = document.createElement('h1');
+                title.className = 'title gold';
+                title.textContent = 'Выберите сложность';
+                gameScreen.appendChild(title);
+                
+                const easyButton = document.createElement('button');
+                easyButton.className = 'button difficulty-button';
+                easyButton.textContent = 'Лёгкий (1-50, 8 попыток, 3 подсказки)';
+                easyButton.addEventListener('click', () => {
+                    difficulty = "easy";
+                    startNewGame();
+                });
+                gameScreen.appendChild(easyButton);
+                
+                const mediumButton = document.createElement('button');
+                mediumButton.className = 'button difficulty-button';
+                mediumButton.textContent = 'Средний (1-100, 10 попыток, 2 подсказки)';
+                mediumButton.addEventListener('click', () => {
+                    difficulty = "medium";
+                    startNewGame();
+                });
+                gameScreen.appendChild(mediumButton);
+                
+                const hardButton = document.createElement('button');
+                hardButton.className = 'button difficulty-button';
+                hardButton.textContent = 'Сложный (1-200, 12 попыток, 1 подсказка)';
+                hardButton.addEventListener('click', () => {
+                    difficulty = "hard";
+                    startNewGame();
+                });
+                gameScreen.appendChild(hardButton);
+                
+            } else if (gameState === "playing") {
+                // Игровой экран
+                const attemptsDisplay = document.createElement('div');
+                attemptsDisplay.className = 'attempts';
+                attemptsDisplay.textContent = `Попытка: ${attempts}/${maxAttempts}`;
+                gameScreen.appendChild(attemptsDisplay);
+                
+                const difficultyDisplay = document.createElement('div');
+                difficultyDisplay.className = 'difficulty';
+                difficultyDisplay.textContent = `Уровень: ${difficulty === "easy" ? "Лёгкий" : difficulty === "medium" ? "Средний" : "Сложный"}`;
+                gameScreen.appendChild(difficultyDisplay);
+                
+                const title = document.createElement('h1');
+                title.className = 'title blue';
+                title.textContent = 'Угадай число';
+                gameScreen.appendChild(title);
+                
+                const inputContainer = document.createElement('div');
+                inputContainer.className = 'input-container';
+                
+                const numberInput = document.createElement('input');
+                numberInput.id = 'number-input';
+                numberInput.type = 'text';
+                numberInput.maxLength = 3;
+                numberInput.placeholder = `${difficultySettings[difficulty].range[0]}-${difficultySettings[difficulty].range[1]}`;
+                inputContainer.appendChild(numberInput);
+                
+                const submitButton = document.createElement('button');
+                submitButton.className = 'button';
+                submitButton.textContent = 'Проверить';
+                submitButton.addEventListener('click', checkGuess);
+                inputContainer.appendChild(submitButton);
+                
+                gameScreen.appendChild(inputContainer);
+                
+                // Обработка нажатия Enter
+                numberInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        checkGuess();
+                    }
+                });
+                
+                const message = document.createElement('div');
+                message.className = 'message';
+                gameScreen.appendChild(message);
+                
+                // Кнопка подсказки
+                const hintsLeft = difficultySettings[difficulty].hints - hintsUsed;
+                if (hintAvailable && hintsLeft > 0) {
+                    const hintButton = document.createElement('button');
+                    hintButton.className = 'button hint-button';
+                    hintButton.textContent = `Получить подсказку (осталось: ${hintsLeft})`;
+                    hintButton.addEventListener('click', getHint);
+                    gameScreen.appendChild(hintButton);
+                }
+                
+                // Показываем текущую подсказку, если есть
+                if (currentHint) {
+                    const hintContainer = document.createElement('div');
+                    hintContainer.className = 'hint-container';
+                    
+                    const hintTitle = document.createElement('div');
+                    hintTitle.className = 'hint-title';
+                    hintTitle.textContent = `Ваша подсказка:`;
+                    hintContainer.appendChild(hintTitle);
+                    
+                    const hintText = document.createElement('div');
+                    hintText.className = 'hint-text';
+                    hintText.textContent = currentHint;
+                    hintContainer.appendChild(hintText);
+                    
+                    gameScreen.appendChild(hintContainer);
+                }
+                
+                const hint = document.createElement('div');
+                hint.className = 'hint';
+                hint.textContent = `Введите число от ${difficultySettings[difficulty].range[0]} до ${difficultySettings[difficulty].range[1]}`;
+                gameScreen.appendChild(hint);
+                
+            } else if (gameState === "win" || gameState === "lose") {
+                // Экран победы/поражения
+                const title = document.createElement('h1');
+                title.className = gameState === "win" ? 'title gold' : 'title red';
+                title.textContent = gameState === "win" ? 'ПОБЕДА!' : 'ИГРА ОКОНЧЕНА';
+                gameScreen.appendChild(title);
+                
+                const message = document.createElement('div');
+                message.className = gameState === "win" ? 'message gold' : 'message red';
+                gameScreen.appendChild(message);
+                
+                const menuButton = document.createElement('button');
+                menuButton.className = 'button';
+                menuButton.textContent = 'В меню';
+                menuButton.addEventListener('click', () => {
+                    gameState = "start";
+                    renderGameScreen();
+                });
+                gameScreen.appendChild(menuButton);
+                
+                const restartButton = document.createElement('button');
+                restartButton.className = 'button';
+                restartButton.textContent = 'Играть снова';
+                restartButton.addEventListener('click', startNewGame);
+                gameScreen.appendChild(restartButton);
+            }
+        }
+        
+        // Инициализация игры
+        createStars();
+        animateStars();
+        renderGameScreen();
+    </script>
+</body>
+</html>
